@@ -1,20 +1,13 @@
 // Handler compartilhado: usado como função serverless na Vercel e pelo server.js local.
 const { handle } = require("../lib/aes-reference.cjs");
 
-// Chaves da Fase 1 (AES). Em produção, defina AES_ENC_KEY / AES_MAC_KEY na Vercel.
-// O fallback são as chaves de TESTE que já estão no código do relógio
-// (prot-simple_sig/shared/config.js) — não servem para nada real.
-const TEST_KEYS = {
-  enc: "7c1a4f0e9b2d3c5a6e8f10213243546f",
-  mac: "0f1e2d3c4b5a69788796a5b4c3d2e1f000112233445566778899aabbccddeeff",
-};
-const KEYS = {
-  enc: process.env.AES_ENC_KEY || TEST_KEYS.enc,
-  mac: process.env.AES_MAC_KEY || TEST_KEYS.mac,
-};
-const usingTestKeys = !process.env.AES_ENC_KEY || !process.env.AES_MAC_KEY;
-// Só ligue se o KAT do relógio indicar layout "iv-prefixado".
-const AES_OPTS = { ivPrefixed: process.env.AES_IV_PREFIXED === "1" };
+// Chave da Fase 1: JWE dir + A128CBC-HS256 (32 bytes = MAC 16 || AES 16), em hex.
+// Em produção, defina AES_KEY na Vercel. O fallback é a chave de TESTE que já está no
+// código do relógio (prot-simple_sig/shared/config.js) — não serve para nada real.
+const TEST_KEY = "aa0d22ecf2a18603770b7b5af0a800798f19311a32931c204432ee3a07194944";
+const KEY = process.env.AES_KEY || TEST_KEY;
+const usingTestKey = !process.env.AES_KEY;
+const JWE_OPTS = { kid: process.env.AES_KID || "test-1" };
 
 function readBody(req) {
   // Na Vercel o body já vem parseado em req.body
@@ -52,8 +45,8 @@ module.exports = async (req, res) => {
 
   // Mensagens do relógio (via app-side) trazem { kind, payload }.
   if (body && typeof body === "object" && typeof body.kind === "string") {
-    if (usingTestKeys) console.warn("Usando chaves de TESTE (AES_ENC_KEY/AES_MAC_KEY não definidas)");
-    const result = handle(body, KEYS, AES_OPTS);
+    if (usingTestKey) console.warn("Usando a chave de TESTE (AES_KEY não definida)");
+    const result = handle(body, KEY, JWE_OPTS);
     console.log("Resultado:", JSON.stringify(result));
     return sendJson(res, 200, result);
   }
